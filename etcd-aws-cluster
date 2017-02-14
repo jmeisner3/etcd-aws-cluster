@@ -35,7 +35,7 @@ if [[ ! $ec2_instance_id ]]; then
     exit 2
 fi
 
-ec2_instance_ip=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)
+ec2_instance_ip=$(curl -s http://169.254.169.254/latest/meta-data/local-hostname)
 if [[ ! $ec2_instance_ip ]]; then
     echo "$pkg: failed to get instance IP address"
     exit 3
@@ -61,7 +61,7 @@ fi
 etcd_client_scheme=${ETCD_CLIENT_SCHEME:-http}
 echo "client_client_scheme=$etcd_client_scheme"
 
-etcd_peer_scheme=${ETCD_PEER_SCHEME:-http}
+etcd_peer_scheme=${etcd_client_scheme:-http}
 echo "peer_peer_scheme=$etcd_peer_scheme"
 
 etcd_peer_urls=$(aws ec2 describe-instances --instance-ids $(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-name "$asg_name" | jq '.AutoScalingGroups[0].Instances[] | select(.LifecycleState  == "InService") | .InstanceId' | xargs) | jq -r ".Reservations[].Instances | map(\"$etcd_client_scheme://\" + .NetworkInterfaces[].PrivateDnsName + \":$client_port\")[]")
@@ -177,7 +177,7 @@ else
     # create a new cluster
     echo "creating new cluster"
 
-    etcd_initial_cluster=$(aws ec2 describe-instances --instance-ids $(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-name "$asg_name" | jq .AutoScalingGroups[0].Instances[].InstanceId | xargs) | jq -r ".Reservations[].Instances | map(.InstanceId + \"=$etcd_peer_scheme://\" + .NetworkInterfaces[].PrivateIpAddress + \":$server_port\")[]" | xargs | sed 's/  */,/g')
+    etcd_initial_cluster=$(aws ec2 describe-instances --instance-ids $(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-name "$asg_name" | jq .AutoScalingGroups[0].Instances[].InstanceId | xargs) | jq -r ".Reservations[].Instances | map(.InstanceId + \"=$etcd_peer_scheme://\" + .NetworkInterfaces[].PrivateDnsName + \":$server_port\")[]" | xargs | sed 's/  */,/g')
     echo "etcd_initial_cluster=$etcd_initial_cluster"
     if [[ ! $etcd_initial_cluster ]]; then
         echo "$pkg: unable to get peers from auto scaling group"
