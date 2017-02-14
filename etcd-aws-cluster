@@ -61,7 +61,7 @@ fi
 etcd_client_scheme=${ETCD_CLIENT_SCHEME:-http}
 echo "client_client_scheme=$etcd_client_scheme"
 
-etcd_peer_scheme=${etcd_client_scheme:-http}
+etcd_peer_scheme=${ETCD_PEER_SCHEME:-http}
 echo "peer_peer_scheme=$etcd_peer_scheme"
 
 etcd_peer_urls=$(aws ec2 describe-instances --instance-ids $(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-name "$asg_name" | jq '.AutoScalingGroups[0].Instances[] | select(.LifecycleState  == "InService") | .InstanceId' | xargs) | jq -r ".Reservations[].Instances | map(\"$etcd_client_scheme://\" + .NetworkInterfaces[].PrivateDnsName + \":$client_port\")[]")
@@ -77,12 +77,16 @@ etcd_existing_peer_names=
 etcd_good_member_url=
 
 for url in $etcd_peer_urls; do
+    echo "TEST: $url"
+
     case "$url" in
         # If we're in proxy mode this is an error, but unlikely to happen?
         *$ec2_instance_ip*) continue;;
     esac
 
     etcd_members=$(curl $ETCD_CURLOPTS -f -s $url/v2/members)
+    echo "TEST MEMBERS: $etcd_members"
+
 
     if [[ $? == 0 && $etcd_members ]]; then
         etcd_good_member_url="$url"
