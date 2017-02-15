@@ -4,7 +4,12 @@ version="0.5"
 
 etcd_peers_file_path="/etc/sysconfig/etcd-peers"
 
-if [ ! $1 ]; then
+    backup_bucket=${BACKUP_BUCKET}
+    etcd_data_dir=${ETCD_DATA_DIR:-/var/lib/etcd2}
+    backup_dir=/backup/etcd
+    echo "backup_bucket=${backup_bucket}"
+    echo "etcd_data_dir=${etcd_data_dir}"
+
     # Allow default client/server ports to be changed if necessary
     client_port=${ETCD_CLIENT_PORT:-2379}
     server_port=${ETCD_SERVER_PORT:-2380}
@@ -185,6 +190,9 @@ if [ ! $1 ]; then
 ETCD_INITIAL_CLUSTER_STATE=existing
 ETCD_NAME=$ec2_instance_id
 ETCD_INITIAL_CLUSTER="$etcd_initial_cluster"
+ETCD_ADVERTISE_CLIENT_URLS=$etcd_client_scheme://$ec2_instance_hostname:$client_port
+ETCD_INITIAL_ADVERTISE_PEER_URLS=$etcd_peer_scheme://$ec2_instance_hostname:$server_port
+ETCD_DATA_DIR=$etcd_data_dir
 ETCD_PROXY=$etcd_proxy
 EOF
 
@@ -204,37 +212,30 @@ EOF
 ETCD_INITIAL_CLUSTER_STATE=new
 ETCD_NAME=$ec2_instance_id
 ETCD_INITIAL_CLUSTER="$etcd_initial_cluster"
+ETCD_ADVERTISE_CLIENT_URLS=$etcd_client_scheme://$ec2_instance_hostname:$client_port
+ETCD_INITIAL_ADVERTISE_PEER_URLS=$etcd_peer_scheme://$ec2_instance_hostname:$server_port
+ETCD_DATA_DIR=$etcd_data_dir
 EOF
-    fi
 
-fi
-
-if [[ $1 = 'restore' ]]; then
-    backup_bucket=${BACKUP_BUCKET}
-    etcd_dir=${ETCD_DATA_DIR:-/var/lib/etcd2}
-    backup_dir=${ETCD_BACKUP_DIR:-$backup_dir}
-    echo "Initialize."
-    echo "backup_bucket=${BACKUP_BUCKET}"
-    echo "etcd_dir=${ETCD_DATA_DIR}"
-    echo "backup_dir=${ETCD_BACKUP_DIR}"
-    if [ $backup_bucket ]; then
-        if [ ! -d $etcd_dir/member ]; then
-          rm -R -f $backup_dir/restore
-          mkdir -p $backup_dir/restore
-          aws s3 sync s3://$backup_bucket $backup_dir/restore
-          if [ -d $backup_dir/restore/member ]; then
-            echo "S3 Backup Exists."
-            mv $backup_dir/restore/member $etcd_dir/member
-            rm -R -f $backup_dir/restore
-            echo "ETCD_RESTORED=yes" >> $etcd_peers_file_path
-            echo "ETCD_FORCE_NEW_CLUSTER=true" >> $etcd_peers_file_path
-            if [ ! -d $etcd_dir/member/snap ]; then
-              mkdir -p $etcd_dir/member/snap
+        if [ $backup_bucket ]; then
+            if [ ! -d $etcd_data_dir/member ]; then
+              mkdir -p /backup/etcd/restore
+              aws s3 sync s3://$backup_bucket /backup/etcd/restore
+              if [ -d /backup/etcd/restore/member ]; then
+                echo "S3 Backup Exists."
+                mv /backup/etcd/restore/member $etcd_data_dir/member
+                if [ ! -d $etcd_data_dir/member/snap ]; then
+                  mkdir -p $etcd_data_dir/member/snap
+                fi
+                cat >> "$etcd_peers_file_path" <<EOF
+ETCD_FORCE_NEW_CLUSTER=true
+ETCD_RESTORED=yes
+EOF
+              fi
             fi
-            chown etcd:etcd -R $etcd_dir
-          fi
         fi
+
     fi
-fi
+
 
 exit 0
