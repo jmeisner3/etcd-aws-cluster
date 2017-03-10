@@ -45,7 +45,7 @@ Workflow
 Usage
 -----
 
-```docker run -v /etc/sysconfig/:/etc/sysconfig/ monsantoco/etcd-aws-cluster```
+```docker run -v /etc/sysconfig/:/etc/sysconfig/ redaptcloud/etcd-aws-cluster```
 
 Environment Variables
 * PROXY_ASG - If specified forces into proxy=on and uses the vaue of PROXY_ASG as the autocaling group that contains the master servers
